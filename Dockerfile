@@ -9,13 +9,15 @@ ENV TZ=UTC
 # 1. Allow Ollama to listen on all interfaces (required for Docker/Render)
 ENV OLLAMA_HOST=0.0.0.0
 # 2. Specify the model to pull automatically
-# WARNING: Verify this model name exists. If it fails, Ollama won't start serving.
+# NOTE: Ensure 'cryptidbleh/gemma4-claude-sonnet-4.6' is a valid Ollama model name.
+# If this is a custom HuggingFace model, you may need to use 'ollama run hf.co/...' syntax 
+# or ensure it's available in the Ollama library.
 ENV OLLAMA_MODEL=cryptidbleh/gemma4-claude-sonnet-4.6:latest
 # 3. Open WebUI configuration
 ENV WEBUI_PORT=3000
 ENV OLLAMA_BASE_URL=http://127.0.0.1:11434
 
-# Install prerequisites: curl, python, pip, nginx (optional proxy), and utilities
+# Install prerequisites: curl, python, pip, git, ffmpeg, AND zstd (required for Ollama)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
@@ -27,6 +29,7 @@ RUN apt-get update && \
     ffmpeg \
     libsm6 \
     libxext6 \
+    zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama
@@ -37,9 +40,6 @@ RUN curl -fsSL https://ollama.com/install.sh | sh
 RUN pip3 install open-webui
 
 # Create a startup script to handle background processes
-# 1. Start Ollama server in the background
-# 2. Pull the specified model
-# 3. Start Open WebUI
 COPY <<EOF /entrypoint.sh
 #!/bin/bash
 set -e
@@ -69,10 +69,9 @@ EOF
 RUN chmod +x /entrypoint.sh
 
 # Expose the Open WebUI port
-# Render will map the external port to this internal port
 EXPOSE 3000
 
-# Health check (optional but good for Render)
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
